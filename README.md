@@ -14,6 +14,8 @@ A task-timer that reads tasks from a text file, tracks them with **Taskwarrior**
 
 ## Dependencies
 
+Tested on **Ubuntu 25.10** (GNOME Shell 49).
+
 ```bash
 sudo apt install taskwarrior timewarrior libnotify-bin pulseaudio-utils zenity python3-pip jq
 pip install rich

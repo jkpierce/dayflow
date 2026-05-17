@@ -43,12 +43,12 @@ def _check_keypress():
 
 
 def setup_terminal():
-    """Set stdin to raw mode for single-key reading. Returns old settings."""
+    """Set stdin to cbreak mode for single-key reading. Returns old settings."""
     if not sys.stdin.isatty():
         return None
     fd = sys.stdin.fileno()
     old = termios.tcgetattr(fd)
-    tty.setraw(fd)
+    tty.setcbreak(fd)
     return old
 
 

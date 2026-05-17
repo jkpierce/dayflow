@@ -10,12 +10,6 @@ if [ ! -f "$TASKS_FILE" ]; then
     exit 1
 fi
 
-echo ""
-echo "=============================="
-echo "  Dayflow Launcher"
-echo "=============================="
-echo ""
-
 # Read tasks, skipping comments and blanks
 tasks=()
 while IFS= read -r line; do
@@ -25,19 +19,11 @@ while IFS= read -r line; do
 done < "$TASKS_FILE"
 
 if [ ${#tasks[@]} -eq 0 ]; then
-    echo "No tasks found in $TASKS_FILE"
+    echo "No tasks found in $TASKS_FILE" >&2
     exit 1
 fi
 
-echo "Found ${#tasks[@]} task(s):"
-echo ""
-
-for task in "${tasks[@]}"; do
-    echo "  $task"
-done
-
-echo ""
-echo "Clearing existing +today tasks..."
+# Clear any existing +today tasks silently
 task +today status:pending export 2>/dev/null | python3 -c "
 import json, sys, subprocess
 try:
@@ -51,22 +37,11 @@ except:
     pass
 " 2>/dev/null || true
 
-echo "Adding tasks to taskwarrior..."
-echo ""
-
+# Add tasks to taskwarrior silently
 for task in "${tasks[@]}"; do
     estimate="$(echo "$task" | sed 's/^[[:space:]]*\([^|]*\)[[:space:]]*|.*/\1/' | xargs)"
     desc="$(echo "$task" | sed 's/^[[:space:]]*[^|]*[[:space:]]*|[[:space:]]*\(.*\)/\1/' | xargs)"
-    
-    if task add "$desc" estimate:"$estimate" +today > /dev/null 2>&1; then
-        echo "  ✓ $desc ($estimate)"
-    else
-        echo "  ✗ Failed: $desc"
-    fi
+    task add "$desc" estimate:"$estimate" +today > /dev/null
 done
-
-echo ""
-echo "Starting Dayflow..."
-echo ""
 
 python -m lib.scheduler

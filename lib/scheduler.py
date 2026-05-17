@@ -89,7 +89,8 @@ Remaining: {format_seconds(remaining)}
     return table
 
 
-def run_task(task, remaining_tasks, next_task=None):
+def run_task(task, remaining_tasks, next_task, live):
+    """Run a single task within an existing Live context."""
 
     task_id = task["id"]
     description = task["description"]
@@ -99,55 +100,54 @@ def run_task(task, remaining_tasks, next_task=None):
 
     start_tracking(description)
 
-    with Live(
+    # Show the new task immediately
+    live.update(
         build_dashboard(
             description,
             0,
             duration_seconds,
             remaining_tasks
-        ),
-        refresh_per_second=4,
-        console=console
-    ) as live:
+        )
+    )
 
-        def live_tick(elapsed, remaining, **kwargs):
+    def live_tick(elapsed, remaining, **kwargs):
 
-            live.update(
-                build_dashboard(
-                    description,
-                    elapsed,
-                    remaining,
-                    remaining_tasks,
-                    paused=kwargs.get("paused", False)
-                )
+        live.update(
+            build_dashboard(
+                description,
+                elapsed,
+                remaining,
+                remaining_tasks,
+                paused=kwargs.get("paused", False)
             )
-
-        completed = countdown(
-            duration_seconds,
-            live_tick
         )
 
-        if not completed:
+    completed = countdown(
+        duration_seconds,
+        live_tick
+    )
 
-            stop_tracking()
+    if not completed:
 
-            return
+        stop_tracking()
 
-        # Single transition notification: done + what's next
-        if next_task:
-            msg = (
-                f"✓ {description}\n"
-                f"\n"
-                f"→ Next: {next_task['description']} ({next_task['estimate']})"
-            )
-        else:
-            msg = f"✓ {description}\n\nThat was the last task."
+        return
 
-        alert(
-            "Task Complete",
-            msg,
-            urgency="normal"
+    # Single transition notification: done + what's next
+    if next_task:
+        msg = (
+            f"✓ {description}\n"
+            f"\n"
+            f"→ Next: {next_task['description']} ({next_task['estimate']})"
         )
+    else:
+        msg = f"✓ {description}\n\nThat was the last task."
+
+    alert(
+        "Task Complete",
+        msg,
+        urgency="normal"
+    )
 
     stop_tracking()
 
@@ -175,21 +175,39 @@ def main():
 
         return
 
+    # Static task list — stays visible above the live dashboard
+    console.print("[bold]Today's Tasks:[/bold]")
+    for t in tasks:
+        console.print(f"  • {t['description']} ({t['estimate']})")
+    console.print()
+
+    old = setup_terminal()
+
     try:
 
-        for index, task in enumerate(tasks):
+        send_notification(
+            "Starting Dayflow",
+            f"First up: {tasks[0]['description']} ({tasks[0]['estimate']})",
+            urgency="normal"
+        )
 
-            remaining_tasks = tasks[index + 1:]
-            next_task = tasks[index + 1] if index + 1 < len(tasks) else None
+        with Live(
+            build_dashboard(
+                tasks[0]["description"],
+                0,
+                parse_estimate(tasks[0]["estimate"]),
+                tasks[1:]
+            ),
+            refresh_per_second=4,
+            console=console
+        ) as live:
 
-            if index == 0:
-                send_notification(
-                    "Starting Dayflow",
-                    f"First up: {task['description']} ({task['estimate']})",
-                    urgency="normal"
-                )
+            for index, task in enumerate(tasks):
 
-            run_task(task, remaining_tasks, next_task)
+                remaining_tasks = tasks[index + 1:]
+                next_task = tasks[index + 1] if index + 1 < len(tasks) else None
+
+                run_task(task, remaining_tasks, next_task, live)
 
         # Brief pause so the last task's completion sound finishes
         time.sleep(2)
@@ -211,6 +229,10 @@ def main():
         console.print(
             "\n[bold yellow]Dayflow aborted.[/bold yellow]\n"
         )
+
+    finally:
+
+        restore_terminal(old)
 
 
 if __name__ == "__main__":
